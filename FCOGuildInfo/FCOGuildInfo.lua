@@ -1,9 +1,18 @@
+--[[
+user:/AddOns/FCOGuildInfo/FCOGuildInfo.lua:171: attempt to index a nil value
+stack traceback:
+user:/AddOns/FCOGuildInfo/FCOGuildInfo.lua:171: in function 'FCOGuildInfo:UpdateMemberCount'
+|caaaaaa<Locals> self = tbl, guildId = 591705, numGuildMembers = 0, newGuildOnlineMemberCount = 0 </Locals>|r
+user:/AddOns/FCOGuildInfo/FCOGuildInfo.lua:335: in function 'OnGuildPlayerStatusChanged'
+|caaaaaa<Locals> event = 327704, guildId = 591705, displayName = "@PaladinSix", oldStatus = 4, newStatus = 1 </Locals>|r
+]]
+
 local LIBLA = LibLoadedAddons
 if LIBLA == nil and LibStub then LIBLA = LibStub:GetLibrary("LibLoadedAddons") end
 if LIBLA == nil then d("[FCOGuildInfo]ERROR: Needed library LibLoadedAddons is missing. Addon won't work properly!") return end
 local ADDON = {}
 ADDON.name = "FCOGuildInfo"
-ADDON.version	= 2.3
+ADDON.version	= 2.4
 ADDON.savedVarsVersion = 1.2
 local FCOGuildInfo = ZO_Object:New()
 FCOGI = FCOGuildInfo
@@ -168,7 +177,8 @@ function FCOGuildInfo:UpdateMemberCount(guildId)
 --d("[UpdateMemberCount] members: " .. numGuildMembers .. ", online: " .. newGuildOnlineMemberCount)
 	--Workaround for guild removed
     if numGuildMembers ~= nil and newGuildOnlineMemberCount ~= nil then
-	    self.guild[guildId].onlineMemberCount = newGuildOnlineMemberCount
+		self.guild[guildId] = self.guild[guildId] or {}
+		self.guild[guildId].onlineMemberCount = newGuildOnlineMemberCount
 		self.guild[guildId].totalMemberCount = numGuildMembers
 	end
 
@@ -405,22 +415,22 @@ function FCOGuildInfo:buildGuildMemberOnlineText(buildType)
 	                    or messageColor ~= nil) then
 	                	if ( messageColor == nil and (rGC ~= nil and gGC ~= nil and bGC ~= nil)) then
 							if chatOutputText ~= '' then
-								chatOutputText = chatOutputText .. " " .. makeColour(rGC, gGC, bGC) .. guildId .. ')|r'
+								chatOutputText = chatOutputText .. " " .. makeColour(rGC, gGC, bGC) .. guildIndex .. ')|r'
 			                else
-			                	chatOutputText = makeColour(rGC, gGC, bGC) .. guildId .. ')|r'
+			                	chatOutputText = makeColour(rGC, gGC, bGC) .. guildIndex .. ')|r'
 							end
 						elseif messageColor ~= nil then
 							if chatOutputText ~= '' then
-								chatOutputText = chatOutputText .. " " .. messageColor .. guildId .. ')|r'
+								chatOutputText = chatOutputText .. " " .. messageColor .. guildIndex .. ')|r'
 			                else
-			                	chatOutputText = messageColor .. guildId .. ')|r'
+			                	chatOutputText = messageColor .. guildIndex .. ')|r'
 							end
 	                    end
 	                else
 						if chatOutputText ~= '' then
-							chatOutputText = chatOutputText .. ' ' .. guildId .. ')'
+							chatOutputText = chatOutputText .. ' ' .. guildIndex .. ')'
 		                else
-		                	chatOutputText = guildId .. ')'
+		                	chatOutputText = guildIndex .. ')'
 						end
 	                end
 					chatOutputText = chatOutputText .. zo_strformat(SI_GUILD_NUM_MEMBERS_ONLINE_FORMAT, "|cFFFFFF" .. self.guild[guildId].onlineMemberCount .. "|r", "|cFFFFFF" .. self.guild[guildId].totalMemberCount .. "|r")
