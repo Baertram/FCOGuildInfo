@@ -1,21 +1,23 @@
 --[[
-user:/AddOns/FCOGuildInfo/FCOGuildInfo.lua:171: attempt to index a nil value
+user:/AddOns/FCOGuildInfo/FCOGuildInfo.lua:385: function expected instead of nil
 stack traceback:
-user:/AddOns/FCOGuildInfo/FCOGuildInfo.lua:171: in function 'FCOGuildInfo:UpdateMemberCount'
-|caaaaaa<Locals> self = tbl, guildId = 591705, numGuildMembers = 0, newGuildOnlineMemberCount = 0 </Locals>|r
-user:/AddOns/FCOGuildInfo/FCOGuildInfo.lua:335: in function 'OnGuildPlayerStatusChanged'
-|caaaaaa<Locals> event = 327704, guildId = 591705, displayName = "@PaladinSix", oldStatus = 4, newStatus = 1 </Locals>|r
+user:/AddOns/FCOGuildInfo/FCOGuildInfo.lua:385: in function 'FCOGuildInfo:buildGuildMemberOnlineText'
+|caaaaaa<Locals> self = [table:1]{}, buildType = "label", chatOutputText = "", numGuilds = 4, guildIndex = 1, guildId = 6477, guildIdRemoved = 6477, displayName = "@Baertram", pChatUseESOcolors = F </Locals>|r
+user:/AddOns/FCOGuildInfo/FCOGuildInfo.lua:120: in function 'FCOGuildInfo:New'
+|caaaaaa<Locals> self = [table:1], guild = [table:2]{}, numGuilds = 4, icon = ud, label = ud, anchorControl = ud </Locals>|r
+user:/AddOns/FCOGuildInfo/FCOGuildInfo.lua:634: in function 'OnAddOnLoaded'
+|caaaaaa<Locals> event = 65536, addonName = "FCOGuildInfo" </Locals>|r
 ]]
 
-local LIBLA = LibLoadedAddons
-if LIBLA == nil and LibStub then LIBLA = LibStub:GetLibrary("LibLoadedAddons") end
-if LIBLA == nil then d("[FCOGuildInfo]ERROR: Needed library LibLoadedAddons is missing. Addon won't work properly!") return end
 local ADDON = {}
 ADDON.name = "FCOGuildInfo"
-ADDON.version	= 2.4
+ADDON.version	= 2.44
 ADDON.savedVarsVersion = 1.2
-local FCOGuildInfo = ZO_Object:New()
+local FCOGuildInfo = ZO_Object:Subclass()
 FCOGI = FCOGuildInfo
+local addonName = ADDON.name
+
+local EM = EVENT_MANAGER
 
 --Load the settings from the SavedVAriables
 local settings = {}
@@ -49,11 +51,11 @@ end
 local function GetAnchorControlInChatWindow(minimized)
 	minimized = minimized or false
 	local anchorControl = nil
-    if LIBLA:IsAddonLoaded('MyStatus') then
+    if MyStatus ~= nil then
 		if minimized then
 			anchorControl = ZO_ChatWindowMail
         else
-			anchorControl = My_StatusStatusOpenDropdown
+			anchorControl = GetControl(MyStatus.control, "StatusOpenDropdown") or My_Status_TLCStatusOpenDropdown
         end
     else
 		if minimized then
@@ -77,87 +79,17 @@ local function FCOGuildInfo_GetMainMenu()
     end
 end
 
-function FCOGuildInfo:New()
+function FCOGuildInfo:New(control)
+	local object = ZO_Object.New(self)
+    object.control = control -->XML defined TLC control FCOGuildInfoContainer
+
 	--Initialize the guild info array for each guild
 	local guild = {}
 	self.guild = guild
 
-	local numGuilds = GetNumGuilds()
-	--Initialize the guild arrays
-    for guildIndex = 1, numGuilds do
-		local locGuildId = GetGuildId(guildIndex)
-		if locGuildId ~= nil and locGuildId > 0 then
-	    	self.guild[locGuildId] = {}
-			--Update the members online/total of each joined guild
-			self:UpdateMemberCount(locGuildId)
-		end
-    end
+	self:Initialize(control)
 
-	local icon = WINDOW_MANAGER:CreateControl("FCOChatWindowGuildInfoIcon", ZO_ChatWindow, CT_TEXTURE)
-	self.guildMembersIcon 		 = icon
-	local label = WINDOW_MANAGER:CreateControl("FCOChatWindowGuildInfoLabel", ZO_ChatWindow, CT_LABEL)
-    self.guildMembersLabel		 = label
-	CHAT_SYSTEM.guildMembersIcon = icon
-	CHAT_SYSTEM.guildMembersLabel = label
-
-	--Hide the icon and the label and unhide them later depending on the settings
-	label:SetHidden(true)
-	icon:SetHidden(true)
-
-	icon:SetDimensions(32, 32)
-	icon:ClearAnchors()
-	--Check if other chat icon addons like MyStatus are active
-    local anchorControl = GetAnchorControlInChatWindow(CHAT_SYSTEM:IsMinimized())
-	icon:SetAnchor(LEFT, anchorControl, RIGHT, settings.IconOffsetX, 0)
-	icon:SetDrawLayer(1)
-	icon:SetMouseEnabled(true)
-
-	label:SetDimensions(225, 32)
-	label:ClearAnchors()
-	label:SetAnchor(LEFT, anchorControl, RIGHT, 2, 0)
-	label:SetDrawLayer(1)
-	label:SetMouseEnabled(true)
-    label:SetText(self:buildGuildMemberOnlineText("label"))
-    label:SetFont("ZoFontGameSmall")
-    --label:SetScale(0.95)
-    label:SetVerticalAlignment(TOP)
-
-	icon:SetHandler("OnMouseUp", function(self, mouseButton, upInside)
-		if mouseButton == 1 and upInside then
-			local mainMenuVar = FCOGuildInfo_GetMainMenu()
-        	mainMenuVar:ShowScene("guildRoster")
-		end
-    end)
-	icon:SetHandler("OnMouseEnter", function()
-		--Build the tooltip text
-		local guildMembersOnlineTooltipText = self:buildGuildMemberOnlineText("tooltip")
-        if guildMembersOnlineTooltipText ~= nil and guildMembersOnlineTooltipText ~= '' then
-	        ZO_Tooltips_ShowTextTooltip(icon, BOTTOM, guildMembersOnlineTooltipText)
-        end
-	end)
-	icon:SetHandler("OnMouseExit", function()
-		ZO_Tooltips_HideTextTooltip()
-	end)
-	label:SetHandler("OnMouseEnter", function()
-		--Build the tooltip text
-		local guildMembersOnlineTooltipText = self:buildGuildMemberOnlineText("tooltip")
-        if guildMembersOnlineTooltipText ~= nil and guildMembersOnlineTooltipText ~= '' then
-	        ZO_Tooltips_ShowTextTooltip(icon, BOTTOM, guildMembersOnlineTooltipText)
-        end
-	end)
-	label:SetHandler("OnMouseExit", function()
-		ZO_Tooltips_HideTextTooltip()
-	end)
-    label:SetHandler("OnMoveStop", function()
-		if not settings.labelMove then return false end
-		if not CHAT_SYSTEM:IsMinimized() then
-			settings.OffsetX = label:GetLeft()
-			settings.OffsetY = label:GetTop()
-		else
-			settings.OffsetChatMinimizedX = label:GetLeft()
-			settings.OffsetChatMinimizedY = label:GetTop()
-        end
-    end)
+	return object
 end
 
 --Read the settings and unhide/hide the label/icon
@@ -293,7 +225,84 @@ function CHAT_SYSTEM:HideMinBar()
 	FCOGuildInfo:ReAnchorControlsInChat(false, false)
 end
 
-function FCOGuildInfo:Initialize()
+function FCOGuildInfo:Initialize(control)
+	local numGuilds = GetNumGuilds()
+	--Initialize the guild arrays
+    for guildIndex = 1, numGuilds do
+		local locGuildId = GetGuildId(guildIndex)
+		if locGuildId ~= nil and locGuildId > 0 then
+	    	self.guild[locGuildId] = {}
+			--Update the members online/total of each joined guild
+			self:UpdateMemberCount(locGuildId)
+		end
+    end
+
+	local icon = WINDOW_MANAGER:CreateControl("FCOChatWindowGuildInfoIcon", ZO_ChatWindow, CT_TEXTURE)
+	self.guildMembersIcon 		 = icon
+	local label = WINDOW_MANAGER:CreateControl("FCOChatWindowGuildInfoLabel", ZO_ChatWindow, CT_LABEL)
+    self.guildMembersLabel		 = label
+	CHAT_SYSTEM.guildMembersIcon = icon
+	CHAT_SYSTEM.guildMembersLabel = label
+
+	--Hide the icon and the label and unhide them later depending on the settings
+	label:SetHidden(true)
+	icon:SetHidden(true)
+
+	icon:SetDimensions(32, 32)
+	icon:ClearAnchors()
+	--Check if other chat icon addons like MyStatus are active
+    local anchorControl = GetAnchorControlInChatWindow(CHAT_SYSTEM:IsMinimized())
+	icon:SetAnchor(LEFT, anchorControl, RIGHT, settings.IconOffsetX, 0)
+	icon:SetDrawLayer(1)
+	icon:SetMouseEnabled(true)
+
+	label:SetDimensions(225, 32)
+	label:ClearAnchors()
+	label:SetAnchor(LEFT, anchorControl, RIGHT, 2, 0)
+	label:SetDrawLayer(1)
+	label:SetMouseEnabled(true)
+    label:SetText(self:buildGuildMemberOnlineText("label"))
+    label:SetFont("ZoFontGameSmall")
+    --label:SetScale(0.95)
+    label:SetVerticalAlignment(TOP)
+
+	icon:SetHandler("OnMouseUp", function(self, mouseButton, upInside)
+		if mouseButton == 1 and upInside then
+			local mainMenuVar = FCOGuildInfo_GetMainMenu()
+        	mainMenuVar:ShowScene("guildRoster")
+		end
+    end)
+	icon:SetHandler("OnMouseEnter", function()
+		--Build the tooltip text
+		local guildMembersOnlineTooltipText = self:buildGuildMemberOnlineText("tooltip")
+        if guildMembersOnlineTooltipText ~= nil and guildMembersOnlineTooltipText ~= '' then
+	        ZO_Tooltips_ShowTextTooltip(icon, BOTTOM, guildMembersOnlineTooltipText)
+        end
+	end)
+	icon:SetHandler("OnMouseExit", function()
+		ZO_Tooltips_HideTextTooltip()
+	end)
+	label:SetHandler("OnMouseEnter", function()
+		--Build the tooltip text
+		local guildMembersOnlineTooltipText = self:buildGuildMemberOnlineText("tooltip")
+        if guildMembersOnlineTooltipText ~= nil and guildMembersOnlineTooltipText ~= '' then
+	        ZO_Tooltips_ShowTextTooltip(icon, BOTTOM, guildMembersOnlineTooltipText)
+        end
+	end)
+	label:SetHandler("OnMouseExit", function()
+		ZO_Tooltips_HideTextTooltip()
+	end)
+    label:SetHandler("OnMoveStop", function()
+		if not settings.labelMove then return false end
+		if not CHAT_SYSTEM:IsMinimized() then
+			settings.OffsetX = label:GetLeft()
+			settings.OffsetY = label:GetTop()
+		else
+			settings.OffsetChatMinimizedX = label:GetLeft()
+			settings.OffsetChatMinimizedY = label:GetTop()
+        end
+    end)
+
 	local guildMembersTextureName = 'EsoUI/Art/Guild/tabicon_roster_up.dds'
 	if ZO_MainMenuSceneGroupBarButton2Image then
     	guildMembersTextureName = ZO_MainMenuSceneGroupBarButton2Image:GetTextureFileName()
@@ -368,6 +377,7 @@ function FCOGuildInfo:buildGuildMemberOnlineText(buildType)
 				--local guildIdRemoved = guildId + MAX_GUILDS
 				local guildIdRemoved = guildId
 --d("[buildGuildMemberOnlineText] guildId: " .. guildId .. ", guildIdRemoved: " .. guildIdRemoved)
+				local serverName = GetWorldName()
 				local displayName = GetDisplayName()
 				local rGC
 	            local gGC
@@ -375,14 +385,18 @@ function FCOGuildInfo:buildGuildMemberOnlineText(buildType)
 				local messageColor
 	            local pChatUseESOcolors = false
 	            if pChat then
-	            	pChatUseESOcolors = PCHAT_OPTS.Default[displayName]["$AccountWide"].useESOcolors or false
+	            	pChatUseESOcolors = ((PCHAT_OPTS[serverName] and PCHAT_OPTS[serverName][displayName] and PCHAT_OPTS[serverName][displayName]["$AccountWide"] and PCHAT_OPTS[serverName][displayName]["$AccountWide"].useESOcolors) or (PCHAT_OPTS["Default"] and PCHAT_OPTS["Default"][displayName] and PCHAT_OPTS["Default"][displayName]["$AccountWide"] and PCHAT_OPTS["Default"][displayName]["$AccountWide"].useESOcolors)) or false
 	            end
 				--Get the current guild's color
 				--is the pChat addon active?
 				if pChat and not pChatUseESOcolors then
-					messageColor = PCHAT_OPTS.Default[displayName]["$AccountWide"].colours[(2* (CHAT_CHANNEL_GUILD_1 + guildIndex - 1)) + 1]
+	            	messageColor = (PCHAT_OPTS[serverName] and PCHAT_OPTS[serverName][displayName]["$AccountWide"].colours[(2* (CHAT_CHANNEL_GUILD_1 + guildIndex - 1)) + 1]) or (PCHAT_OPTS["Default"] and PCHAT_OPTS["Default"][displayName] and PCHAT_OPTS["Default"][displayName]["$AccountWide"] and PCHAT_OPTS["Default"][displayName]["$AccountWide"].colours and PCHAT_OPTS["Default"][displayName]["$AccountWide"].colours[(2* (CHAT_CHANNEL_GUILD_1 + guildIndex - 1)) + 1])
 				else
-					rGC, gGC, bGC = CHAT_SYSTEM:GetCategoryColorFromChannel(_G["CHAT_CHANNEL_GUILD_" .. tostring(guildIndex)])
+					if CHAT_SYSTEM and CHAT_SYSTEM.GetCategoryColorFromChannel then
+						rGC, gGC, bGC = CHAT_SYSTEM:GetCategoryColorFromChannel(_G["CHAT_CHANNEL_GUILD_" .. tostring(guildIndex)])
+					elseif ZO_ChatSystem_GetCategoryColorFromChannel then
+						rGC, gGC, bGC = ZO_ChatSystem_GetCategoryColorFromChannel(_G["CHAT_CHANNEL_GUILD_" .. tostring(guildIndex)])
+					end
 				end
 				if buildType == "tooltip" then
 					if chatOutputText ~= '' then
@@ -617,7 +631,7 @@ local function FCOGuildInfo_Player_Activated(...)
         IconOffsetX = 2,
     }
 	--Load the user's settings from SavedVariables file -> Account wide of current addon version
-	settings = ZO_SavedVars:NewAccountWide(ADDON.name .. "_Settings", ADDON.savedVarsVersion, "Settings", defaultSettings)
+	settings = ZO_SavedVars:NewAccountWide(addonName .. "_Settings", ADDON.savedVarsVersion, "Settings", defaultSettings)
 	--ReAnchor the icon in the chat window
 	FCOGuildInfo:ReAnchorControlsInChat(CHAT_SYSTEM:IsMinimized(), true)
     -- Check the settings and react on them
@@ -627,31 +641,27 @@ end
 -------------------------------------------------------------------
 --  OnAddOnLoaded  --
 -------------------------------------------------------------------
-local function OnAddOnLoaded(event, addonName)
-	if addonName ~= ADDON.name then return end
+local function OnAddOnLoaded(event, addonNameOfEachAddon)
+	if addonNameOfEachAddon ~= addonName then return end
 
-    --Cretae the controls
-  	FCOGuildInfo:New()
-	FCOGuildInfo:Initialize()
+	--Create the controls
+  	FCOGuildInfo:New(FCOGuildInfoContainer)
 
     -- Register slash commands
     RegisterSlashCommands()
 
 	--Register for the zone change/player ready event
-	EVENT_MANAGER:RegisterForEvent(ADDON.name, EVENT_PLAYER_ACTIVATED, FCOGuildInfo_Player_Activated)
+	EM:RegisterForEvent(addonName, EVENT_PLAYER_ACTIVATED, FCOGuildInfo_Player_Activated)
 	--Register for the guild member events
-	EVENT_MANAGER:RegisterForEvent(ADDON.name, EVENT_GUILD_MEMBER_PLAYER_STATUS_CHANGED, OnGuildPlayerStatusChanged)
-    EVENT_MANAGER:RegisterForEvent(ADDON.name, EVENT_GUILD_MEMBER_ADDED, OnGuildCountChange)
-    EVENT_MANAGER:RegisterForEvent(ADDON.name, EVENT_GUILD_MEMBER_REMOVED, OnGuildCountChange)
-    EVENT_MANAGER:RegisterForEvent(ADDON.name, EVENT_GUILD_SELF_JOINED_GUILD, OnGuildSelfChange)
-    EVENT_MANAGER:RegisterForEvent(ADDON.name, EVENT_GUILD_SELF_LEFT_GUILD, OnGuildSelfLeft)
-	EVENT_MANAGER:UnregisterForEvent(ADDON.name, EVENT_ADD_ON_LOADED)
-
-	-- Registers addon to loadedAddon library
-	LIBLA:RegisterAddon(ADDON.name, ADDON.version)
+	EM:RegisterForEvent(addonName, EVENT_GUILD_MEMBER_PLAYER_STATUS_CHANGED, OnGuildPlayerStatusChanged)
+    EM:RegisterForEvent(addonName, EVENT_GUILD_MEMBER_ADDED, OnGuildCountChange)
+    EM:RegisterForEvent(addonName, EVENT_GUILD_MEMBER_REMOVED, OnGuildCountChange)
+    EM:RegisterForEvent(addonName, EVENT_GUILD_SELF_JOINED_GUILD, OnGuildSelfChange)
+    EM:RegisterForEvent(addonName, EVENT_GUILD_SELF_LEFT_GUILD, OnGuildSelfLeft)
+	EM:UnregisterForEvent(addonName, EVENT_ADD_ON_LOADED)
 end
 
 ---------------------------------------------------------------------
 --  Register Events --
 ---------------------------------------------------------------------
-EVENT_MANAGER:RegisterForEvent(ADDON.name, EVENT_ADD_ON_LOADED, OnAddOnLoaded)
+EM:RegisterForEvent(addonName, EVENT_ADD_ON_LOADED, OnAddOnLoaded)
